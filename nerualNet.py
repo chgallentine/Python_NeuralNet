@@ -2,7 +2,7 @@
 # @Author: Charlie Gallentine
 # @datae:   2019-11-28 09:45:11
 # @Last Modified by:   Charlie Gallentine
-# @Last Modified time: 2019-12-06 11:44:15
+# @Last Modified time: 2019-12-06 12:07:59
 
 import numpy as np 
 from matplotlib import pyplot as plt 
@@ -53,8 +53,6 @@ class NerualNet:
 				self.arch.append( Layer(layer["num_nodes"], architecture[i+1]["num_nodes"], "weight", None) )
 
 		self.arch.append( Layer(1, architecture[-1]["num_nodes"], architecture[-1]["type"], architecture[-1]["activation"]) )
-
-
 
 	#  Set an array as the input to the network
 	def set_input(self, arr):
@@ -139,7 +137,9 @@ train_key = [
 	[[0]],
 ]
 
-for i in range(500):
+i = 0
+while i < 5000000000:
+	i += 1
 	total_err = 0.0
 
 	for j,val in enumerate(train_set):
@@ -149,6 +149,12 @@ for i in range(500):
 		print(total_err)
 		print("\n")
 		NN.backpropagate(train_key[j], 0.5)
+
+	if (total_err < 0.00001):
+		break
+
+print("Done at: ")
+print(i)
 
 for entry in train_set:
 	NN.set_input(np.array(entry))
