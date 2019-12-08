@@ -2,7 +2,7 @@
 # @Author: Charlie Gallentine
 # @datae:   2019-11-28 09:45:11
 # @Last Modified by:   Charlie Gallentine
-# @Last Modified time: 2019-12-08 15:05:15
+# @Last Modified time: 2019-12-08 15:18:59
 
 import numpy as np 
 import random
@@ -144,6 +144,24 @@ class NeuralNet:
 				layer.d_data = np.zeros(layer.d_data.shape)
 				layer.d_bias = np.zeros(layer.d_bias.shape)
 
+	def train(self, data, epochs, learning_rate, batch_size):
+		train_set = data.training
+
+		i = 0
+		while i < epochs:
+			
+			total_err = 0.0
+
+			for j,val in enumerate(train_set):
+				self.set_input(np.array(val[0]))
+				total_err += 0.5 * ((self.feed_foward() - val[1]) ** 2)
+				self.backpropagate(val[1])
+				self.update_weight(learning_rate)
+
+			if (i % (epochs / 10) == 0):
+				print(": ".join((str(i),str(total_err))))
+
+			i += 1
 
 
 class Dataset:
