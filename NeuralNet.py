@@ -2,16 +2,10 @@
 # @Author: Charlie Gallentine
 # @datae:   2019-11-28 09:45:11
 # @Last Modified by:   Charlie Gallentine
-# @Last Modified time: 2019-12-06 12:07:59
+# @Last Modified time: 2019-12-08 15:05:15
 
 import numpy as np 
-from matplotlib import pyplot as plt 
-
-architecture = [
-	{"num_nodes" : 2, "type" : "input", "activation" : None},
-	{"num_nodes" : 2, "type" : "hidden", "activation" : "sigmoid"},
-	{"num_nodes" : 1, "type" : "output", "activation" : "sigmoid"},
-]
+import random
 
 class Layer:
 	def __init__(self, rows, cols, type, activation):
@@ -21,29 +15,40 @@ class Layer:
 			self.activation = None
 			self.data = np.random.rand(rows,cols)
 			self.d_data = np.zeros((rows,cols))
+			self.bias = np.random.rand(1,cols)
+			self.d_bias = np.zeros((1,cols))
 		elif (type == "input"):
 			self.activation = None
 			self.data = np.zeros((1,cols))
 			self.d_data = None
+			self.bias = np.ones((1,1))
+			self.d_bias = None
 		elif (type == "output"):
 			self.activation = activation
 			self.data = np.zeros((1,cols))
 			self.d_data = None
+			self.bias = None
+			self.d_bias = None
 		elif (type == "hidden"):
 			self.activation = activation
 			self.data = np.zeros((1,cols))
 			self.d_data = None	
+			self.bias = np.ones((1,1))
+			self.d_bias = None
 		else:
-			self.activation = None
+			self.activation = "other"
 			self.data = None
 			self.d_data = None
 			self.type = None
+			self.bias = None
 
 		np.atleast_2d(self.data)
 		np.atleast_2d(self.d_data)
+		np.atleast_2d(self.bias)
+		np.atleast_2d(self.d_bias)
 
 
-class NerualNet:
+class NeuralNet:
 	arch = []
 
 	def __init__(self, architecture):
@@ -60,7 +65,7 @@ class NerualNet:
 
 	def activate(self, x, type):
 		if (type == "sigmoid"):
-			return 1.0 / (1.0 + np.exp(-x))
+			return np.divide(np.exp(x), (1.0 + np.exp(x)))
 		elif (type == "ReLU"):
 			return np.max(0,x)
 		elif (type == "tanh"):
@@ -70,26 +75,41 @@ class NerualNet:
 
 	def d_activate(self, x, type):
 		if (type == "sigmoid"):
-			return self.activate(x,"sigmoid") * (1.0 - self.activate(x,"sigmoid"))
+			return np.multiply(x, 1.0 - x)
 		elif (type == "ReLU"):
 			return 0 if x < 0 else 1
 		elif (type == "tanh"):
-			return 1.0 - (self.activate(x,"tanh") ** 2)
+			return 1.0 - (x ** 2)
 		else:
 			return x #no-op
+
+	def cost(self, expected):
+		return np.sum(0.5 * ((self.arch[-1].data - expected) ** 2))
+
+	def d_cost(self, expected):
+		return np.subtract(self.arch[-1].data, expected)
 
 	# Go through neural network performing the forward pass
 	def feed_foward(self):
 		for i, layer in enumerate(self.arch):
 			if (i < len(self.arch) - 1):
-				self.activate(layer.data, layer.type)
-
 				if ( layer.type != "weight" ):
-					self.arch[i+2].data = np.copy(np.matmul(layer.data, self.arch[i+1].data))
+					self.arch[i+2].data = np.copy(
+						self.activate(
+							np.matmul(
+								self.activate(layer.data, layer.activation), 
+								self.arch[i+1].data) + 
+							np.matmul(
+								layer.bias, 
+								self.arch[i+1].bias), 
+							self.arch[i+2].activation
+						)
+					)
+
 		return self.arch[-1].data
 
 
-	def backpropagate(self, expected, learning_rate):
+	def backpropagate(self, expected):
 		# Output minus expected
 		dzlplus1_dal = np.subtract(self.arch[-1].data, expected)
 		# Derivative of activation for layer L
@@ -100,8 +120,8 @@ class NerualNet:
 		passdown_mat = np.multiply(dzlplus1_dal, dal_dzl)
 
 		tmp = np.matmul(dzl_dwl, passdown_mat)
-
-		self.arch[-2].d_data = np.copy(learning_rate * tmp)
+		self.arch[-2].d_data = self.arch[-2].d_data + tmp
+		self.arch[-2].d_bias = self.arch[-2].d_bias + passdown_mat
 
 		for i, layer in reversed(list(enumerate(self.arch))):
 			if (layer.type != "weight" and layer.type != "output" and i > 0):
@@ -112,60 +132,36 @@ class NerualNet:
 				pd_elmwise_dal_dzl = np.copy(np.multiply(pd_x_dzlplus1_dal, dal_dzl))
 				passdown_mat = np.copy(pd_elmwise_dal_dzl)
 				tmp = np.matmul(dzl_dwl, pd_elmwise_dal_dzl)
-				self.arch[i-1].d_data = np.copy(tmp);
 
+				self.arch[i-1].d_data = self.arch[i-1].d_data + tmp
+				self.arch[i-1].d_bias = self.arch[i-1].d_bias + passdown_mat
+
+	def update_weight(self, learning_rate):
 		for layer in self.arch:
 			if (layer.type == "weight"):
 				layer.data = layer.data - learning_rate * layer.d_data
-
-
-NN = NerualNet(architecture)
-
-NN.set_input(np.array([[1,0]]))
-
-train_set = [
-	[[0,0]],
-	[[0,1]],
-	[[1,0]],
-	[[0,0]],
-]
-
-train_key = [
-	[[0]],
-	[[1]],
-	[[1]],
-	[[0]],
-]
-
-i = 0
-while i < 5000000000:
-	i += 1
-	total_err = 0.0
-
-	for j,val in enumerate(train_set):
-		NN.set_input(np.array(val))
-		total_err += 0.5 * ((NN.feed_foward() - train_key[j]) ** 2)
-		print("ERROR")
-		print(total_err)
-		print("\n")
-		NN.backpropagate(train_key[j], 0.5)
-
-	if (total_err < 0.00001):
-		break
-
-print("Done at: ")
-print(i)
-
-for entry in train_set:
-	NN.set_input(np.array(entry))
-	NN.feed_foward()
-
-	print(entry)
-	print(NN.arch[-1].data)
+				layer.bias = layer.bias - learning_rate * layer.d_bias
+				layer.d_data = np.zeros(layer.d_data.shape)
+				layer.d_bias = np.zeros(layer.d_bias.shape)
 
 
 
+class Dataset:
+	training = []
+	validation = []
 
+	def __init__(self, fname, inlen, trainpercent):
+		datafile = open(fname, "r")
+
+		for dp in datafile:
+			tmp = []
+			tmp.append([list(np.fromstring(dp, dtype=float, sep=' ')[:inlen])])
+			tmp.append([list(np.fromstring(dp, dtype=float, sep=' ')[inlen:])])
+
+			if (random.uniform(0, 1) <= trainpercent):
+				self.training.append(tmp)
+			else:
+				self.validation.append(tmp)
 
 
 
